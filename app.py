@@ -47,10 +47,10 @@ df, data_ref = load_data()
 # ================================
 # MENU LATERAL
 # ================================
-st.sidebar.image(
-    "https://img.icons8.com/color/96/000000/brazil.png",
-    width=60
-)
+#st.sidebar.image(
+#    "https://img.icons8.com/color/96/000000/brazil.png",
+#    width=60
+#)
 
 pagina = st.sidebar.radio(
     "📌 Navegação do Painel",
