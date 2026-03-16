@@ -37,17 +37,17 @@ jobs:
 
       - name: Salvar os dados processados e apagar o ZIP pesado
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          
-          # Apaga o CSV cru e o ZIP gigante para não estourar o limite do GitHub
-          rm data/*_Cadastro.csv || true
-          rm data/*.zip || true
-          
-          # Adiciona apenas os arquivos processados e levinhos
-          git add data/dados_atis.csv
-          git add data/metadata.json
-          
-          # Comita e joga de volta pro repositório
-          git commit -m "🤖 Update automático: Processamento dos dados mensais" || echo "Nenhuma mudança para commitar"
-          git push
+                git config --local user.email "action@github.com"
+                git config --local user.name "GitHub Action"
+                
+                # Apaga o CSV cru e o ZIP gigante para não estourar o limite do GitHub
+                rm data/*_Cadastro.csv || true
+                rm data/*.zip || true
+                
+                # FORÇA a adição dos arquivos processados (ignorando a regra do .gitignore)
+                git add -f data/dados_atis.csv
+                git add -f data/metadata.json
+                
+                # Comita e joga de volta pro repositório
+                git commit -m "🤖 Update automático: Processamento dos dados mensais" || echo "Nenhuma mudança para commitar"
+                git push
