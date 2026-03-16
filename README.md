@@ -58,60 +58,20 @@ venv\Scripts\activate
 
 # Instale as dependências
 pip install -r requirements.txt
-
-3. Obtendo os Dados Brutos
-Acesse oPortal da Transparência - Servidores.
+```
+### 3. Obtendo os Dados Brutos
+Acesse o Portal da Transparência - Servidores.
 Baixe o arquivo de Servidores SIAPE do mês mais recente (Ex: 202601_Servidores_SIAPE.zip).
 Coloque este arquivo .zip inteiro dentro da pasta data/ do projeto.
-4. Rodando o Pipeline e o Dashboard
-code
-Bash
+
+
+### 4. Rodando o Pipeline e o Dashboard
+```bash
 # Execute o extrator de dados (limpeza e processamento)
 python etl_atis.py
 
 # Inicie a interface do Observatório
 streamlit run app.py
+```
 O painel abrirá automaticamente no seu navegador em http://localhost:8501.
-🤖 Como atualizar os dados mensalmente (Automação GitHub)
-Este projeto possui integração contínua (CI). Para atualizar o mês do painel, você não precisa rodar o código no seu computador.
-Baixe o arquivo .zip do novo mês no Portal da Transparência.
-Coloque o .zip na pasta data/ e faça o push para o GitHub:
-code
-Bash
-git add data/NOME_DO_ARQUIVO.zip
-git commit -m "Adiciona dados brutos do mes X"
-git push
-O GitHub Actions assumirá o controle:
-Ele vai detectar o .zip.
-Vai rodar o script etl_atis.py nos servidores da nuvem.
-Vai salvar o dados_atis.csv extraído.
-Vai apagar o arquivo .zip gigante automaticamente para manter o repositório leve.
-O seu painel no Streamlit Cloud será atualizado na hora!
-📂 Estrutura do Projeto
-code
-Text
-├── .github/
-│   └── workflows/
-│       └── atualiza_dados.yml  # Regras da automação (CI/CD) do Github Actions
-├── data/
-│   ├── dados_atis.csv          # Base limpa gerada pelo ETL (Ignorar no primeiro clone)
-│   └── metadata.json           # Mês de referência dinâmico
-├── app.py                      # Aplicação do Dashboard (Streamlit)
-├── etl_atis.py                 # Script de Engenharia de Dados (Processamento do CSV)
-├── requirements.txt            # Dependências Python
-└── README.md                   # Documentação do projeto
-📊 Filtros e Funcionalidades Disponíveis
-Órgão de Exercício: Mostra os ATIs lotados no órgão real em que atuam, mesmo se estiverem requisitados.
-Ocupa Função Comissionada: Filtra rapidamente lideranças técnicas (CCE/FCE).
-Classe na Carreira: Visão por senioridade (Classe S, A, B, C).
-Ano de Ingresso: Histórico de entrada na Administração Pública.
-Top 10 Órgãos: Gráfico interativo com a maior concentração de servidores.
-Desenvolvido por [Seu Nome/LinkedIn] - Engenharia de Dados & Analytics 🚀
-code
-Code
----
 
-### 💡 Dicas Finais:
-1. Troque `https://github.com/SEU_USUARIO/NOME_DO_REPOSITORIO.git` pelo link real do seu repositório.
-2. Troque `[Seu Nome/LinkedIn]` no final pela sua assinatura e link do seu perfil!
-3. Quando você for colocar esse projeto no ar e subir pro GitHub de fato, vá no site **[Streamlit Community Cloud](https://share.streamlit.io/)**, conecte seu GitHub e aponte para o arquivo `app.py`. Seu painel ficará online na internet de graça para você mandar o link nas suas entrevistas!

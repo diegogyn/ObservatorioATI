@@ -1,0 +1,49 @@
+name: Atualizar Dados do Observatório ATI
+
+on:
+  push:
+    paths:
+      - 'data/*.zip' # Roda automaticamente se você subir um ZIP novo
+  workflow_dispatch: # Permite rodar manualmente apertando um botão no GitHub
+
+# PERMISSÃO NECESSÁRIA PARA O ROBÔ FAZER O GIT PUSH
+permissions:
+  contents: write
+
+jobs:
+  etl-job:
+    runs-on: ubuntu-latest # Removido o "runs-steps:" que estava errado
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar o Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar Dependências
+        run: |
+          pip install -r requirements.txt
+
+      - name: Rodar o ETL
+        run: |
+          python etl_atis.py
+
+      - name: Salvar os dados processados e apagar o ZIP pesado
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Apaga o CSV cru e o ZIP gigante para não estourar o limite do GitHub
+          rm data/*_Cadastro.csv || true
+          rm data/*.zip || true
+          
+          # Adiciona apenas os arquivos processados e levinhos
+          git add data/dados_atis.csv
+          git add data/metadata.json
+          
+          # Comita e joga de volta pro repositório
+          git commit -m "🤖 Update automático: Processamento dos dados mensais" || echo "Nenhuma mudança para commitar"
+          git push
