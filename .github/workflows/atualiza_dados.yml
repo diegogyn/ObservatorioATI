@@ -6,13 +6,17 @@ on:
       - 'data/*.zip' # Roda automaticamente se você subir um ZIP novo
   workflow_dispatch: # Permite rodar manualmente apertando um botão no GitHub
 
-# PERMISSÃO NECESSÁRIA PARA O ROBÔ FAZER O GIT PUSH
+# Permissão necessária para o robô fazer o git push
 permissions:
   contents: write
 
+# RESOLVE O AVISO DO NODE.JS 20 -> Força o uso do Node 24 atualizado
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   etl-job:
-    runs-on: ubuntu-latest # Removido o "runs-steps:" que estava errado
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout do Repositório
