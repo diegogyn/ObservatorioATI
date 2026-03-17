@@ -91,12 +91,34 @@ def processar_dados_abertos():
             
         linha_efetiva = linhas_efetivas.iloc[0]
         nome = str(linha_efetiva[col_nome]).strip()
-        orgao = str(linha_efetiva[col_orgao]).strip()
+        orgao = str(linha_efetiva[col_orgao]).strip().upper()
         
-        classe = str(linha_efetiva[col_classe]).strip() if pd.notna(linha_efetiva[col_classe]) else '-'
-        padrao = str(linha_efetiva[col_padrao]).strip() if pd.notna(linha_efetiva[col_padrao]) else '-'
-        nivel_padrao = f"Classe {classe} / Padrão {padrao}"
-        
+        romano = {"1": "I", "01": "I", "001": "I",
+                "2": "II", "02": "II", "002": "II",
+                "3": "III", "03": "III", "003": "III",
+                "4": "IV", "04": "IV", "004": "IV",
+                "5": "V", "05": "V", "005": "V",
+                "6": "VI", "06": "VI", "006": "VI"}
+
+        limites_validos = {
+            "A": ["I", "II", "III", "IV", "V"],
+            "B": ["I", "II", "III", "IV", "V", "VI"],
+            "C": ["I", "II", "III", "IV", "V", "VI"],
+            "ESPECIAL": ["I", "II", "III"],
+        }
+
+        classe_raw = str(linha_efetiva[col_classe]).strip().upper() if pd.notna(linha_efetiva[col_classe]) else '-'
+        padrao_raw = str(linha_efetiva[col_padrao]).strip() if pd.notna(linha_efetiva[col_padrao]) else '-'
+        padrao_fmt = romano.get(padrao_raw, padrao_raw)
+
+        # Validação: marca dado suspeito para investigação
+        padroes_validos = limites_validos.get(classe_raw, [])
+        if padroes_validos and padrao_fmt not in padroes_validos:
+            padrao_fmt = f"{padrao_fmt}(?)"  # sinaliza dado inconsistente
+
+        classe_fmt = classe_raw.capitalize()
+        nivel_padrao = f"{classe_fmt}-{padrao_fmt}"
+                
         data_ingresso_sp = str(linha_efetiva[col_data_sp]).strip()
         if data_ingresso_sp in ['nan', '-1', '0', 'SEM INFORMAÇÃO', '']: data_ingresso_sp = "Não informada"
         
@@ -149,10 +171,10 @@ def processar_dados_abertos():
                 if partes_funcao:
                     funcao_final = " - ".join(partes_funcao)
                     
-                    orgao_chefia = str(linha[col_orgao]).strip()
+                    orgao_chefia = str(linha[col_orgao]).strip().upper()
                     if orgao_chefia not in ['-1', '0', 'NAN', 'SEM INFORMAÇÃO']:
                         orgao = orgao_chefia
-                        
+                                            
                     dt_func = str(linha[col_data_funcao]).strip()
                     if dt_func not in ['nan', '-1', '0', 'SEM INFORMAÇÃO', '']: data_ingresso_funcao = dt_func
                     
