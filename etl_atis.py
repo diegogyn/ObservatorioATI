@@ -69,7 +69,7 @@ def processar_dados_abertos():
     col_data_sp = 'DATA_DIPLOMA_INGRESSO_SERVICOPUBLICO'
     col_data_funcao = 'DATA_INGRESSO_CARGOFUNCAO'
 
-    filtro_ati = df[col_cargo].astype(str).str.contains("ANALISTA EM TECN", case=False, na=False)
+    filtro_ati = df[col_cargo].astype(str).str.contains("ANALISTA EM TECNOL DA INFORMACAO", case=False, na=False)
     
     if col_id in df.columns:
         identificadores_atis = df[filtro_ati][col_id].unique()
@@ -86,7 +86,7 @@ def processar_dados_abertos():
     dados_processados = []
 
     for identificador, group in df_atis_completo.groupby(chave_agrupamento):
-        linhas_efetivas = group[group[col_cargo].astype(str).str.contains("ANALISTA EM TECN", case=False, na=False)]
+        linhas_efetivas = group[group[col_cargo].astype(str).str.contains("ANALISTA EM TECNOL DA INFORMACAO", case=False, na=False)]
         if linhas_efetivas.empty: continue
             
         linha_efetiva = linhas_efetivas.iloc[0]
@@ -105,16 +105,25 @@ def processar_dados_abertos():
         
         for _, linha in group.iterrows():
             cargo_da_linha = str(linha[col_cargo]).strip().upper()
+            tipo_vinculo = str(linha.get('COD_TIPO_VINCULO', '2')).strip()
+
+            # Pula linhas que não são de função (tipo_vinculo != "1") e não são do cargo efetivo
+            if tipo_vinculo != '1':
+                continue  # só processa linhas de função
             
-            if "ANALISTA EM TECN" not in cargo_da_linha and cargo_da_linha not in ['-1', '0', 'NAN', '']:
+            if "ANALISTA EM TECNOL DA INFORMACAO" not in cargo_da_linha and cargo_da_linha not in ['-1', '0', 'NAN', '']:
                 
                 sigla = str(linha[col_sigla]).strip().upper() if pd.notna(linha[col_sigla]) else ""
                 nivel = str(linha[col_nivel_func]).strip() if pd.notna(linha[col_nivel_func]) else ""
                 atividade = str(linha[col_atividade]).strip().upper() if pd.notna(linha[col_atividade]) else ""
                 
-                if sigla in ['-1', '0', '0000', 'NAN', 'SEM INFORMAÇÃO', 'SEM INFORMA']: sigla = ""
-                if nivel in ['-1', '0', '0000', 'NAN', 'SEM INFORMAÇÃO', 'SEM INFORMA']: nivel = ""
-                if atividade in ['-1', '0', '0000', 'NAN', 'SEM INFORMAÇÃO', 'SEM INFORMA', '']: atividade = ""
+                # Filtra valores inválidos de forma robusta (cobre acentos e variações)
+                if not sigla or sigla.startswith('-') or sigla.startswith('0') or 'INFORMA' in sigla:
+                    sigla = ""
+                if not nivel or nivel.startswith('-') or nivel == '0':
+                    nivel = ""
+                if not atividade or atividade.startswith('-') or atividade.startswith('0') or 'INFORMA' in atividade:
+                    atividade = ""      
                 
                 partes_funcao = []
                 
