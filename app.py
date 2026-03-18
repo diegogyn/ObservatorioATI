@@ -34,7 +34,7 @@ def load_data():
     if not df.empty:
 
         df["Classe"] = df["Nível/Padrão"].apply(
-            lambda x: str(x).split("/")[0].strip() if pd.notna(x) else "Desconhecida"
+            lambda x: str(x).split("-")[0].strip().upper() if pd.notna(x) else "Desconhecida"
         )
 
         df["Ano de Ingresso"] = df["Ingresso Serviço Público"].apply(
@@ -158,20 +158,107 @@ if pagina == "📊 Observatório ATI":
 
     with colA:
         st.subheader("🏢 Top 10 Órgãos com mais ATIs")
-        df_orgaos = df_filtrado["Órgão de Exercício"].value_counts().reset_index().head(10)
-        df_orgaos.columns = ["Órgão", "Quantidade"]
-        fig_orgaos = px.bar(df_orgaos, x="Quantidade", y="Órgão", orientation="h", color="Quantidade", color_continuous_scale="Blues")
-        fig_orgaos.update_layout(yaxis={"categoryorder": "total ascending"})
+        
+        # Pega apenas os nomes dos 10 maiores órgãos
+        top_10_nomes = df_filtrado["Órgão de Exercício"].value_counts().head(10).index.tolist()
+        
+        # Filtra o dataframe apenas para esses 10 órgãos
+        df_top10 = df_filtrado[df_filtrado["Órgão de Exercício"].isin(top_10_nomes)]
+        
+        # Agrupa por Órgão e se Tem Função
+        df_orgaos_func = df_top10.groupby(["Órgão de Exercício", "Tem Função?"]).size().reset_index(name="Quantidade")
+        
+        fig_orgaos = px.bar(
+            df_orgaos_func, 
+            x="Quantidade", 
+            y="Órgão de Exercício", 
+            color="Tem Função?", 
+            orientation="h",
+            color_discrete_map={"Sim": "#1f77b4", "Não": "#b0c4de"}, # Azul forte para Sim, azul fraco para Não
+            category_orders={"Órgão de Exercício": top_10_nomes[::-1]} # Mantém a ordem do maior pro menor
+        )
+        fig_orgaos.update_layout(barmode="stack", margin=dict(t=20, b=20, l=0, r=0))
         st.plotly_chart(fig_orgaos, use_container_width=True)
 
     with colB:
         st.subheader("📊 Distribuição por Nível da Carreira")
+        
+        # Adiciona um toggle sutil para mudar a visão
+        modo_percentual = st.toggle("Ver em Percentual (%)", value=False)
+        
         df_niveis = df_filtrado.groupby(["Nível/Padrão", "Tem Função?"]).size().reset_index(name="Quantidade")
         df_niveis = df_niveis.sort_values(by="Nível/Padrão")
-        fig_niveis = px.bar(df_niveis, x="Nível/Padrão", y="Quantidade", color="Tem Função?", barmode="stack", color_discrete_map={"Sim": "#1f77b4", "Não": "#ff7f0e"})
+        
+        # Configura o tipo de barra baseado no toggle
+        barmode_tipo = "relative" if modo_percentual else "stack"
+        barnorm_tipo = "percent" if modo_percentual else None
+        
+        fig_niveis = px.bar(
+            df_niveis, 
+            x="Nível/Padrão", 
+            y="Quantidade", 
+            color="Tem Função?", 
+            color_discrete_map={"Sim": "#1f77b4", "Não": "#ff7f0e"}
+        )
+        fig_niveis.update_layout(
+            barmode=barmode_tipo, 
+            barnorm=barnorm_tipo,
+            yaxis_title="% de Servidores" if modo_percentual else "Quantidade"
+        )
         st.plotly_chart(fig_niveis, use_container_width=True)
 
     st.divider()
+
+    # ================================
+    # GRÁFICOS PARTE 1.5 - TEMPO E SENIORIDADE
+    # ================================
+    st.divider()
+    colC, colD = st.columns(2)
+
+    with colC:
+        st.subheader("⏳ Histórico de Ingresso (Ondas de Concursos)")
+        st.markdown("Distribuição do ano de ingresso no serviço público.")
+        
+        # Filtra anos desconhecidos
+        df_anos = df_filtrado[df_filtrado["Ano de Ingresso"] != "Desconhecido"]
+        if not df_anos.empty:
+            df_ingressos = df_anos.groupby("Ano de Ingresso").size().reset_index(name="Quantidade")
+            df_ingressos = df_ingressos.sort_values("Ano de Ingresso")
+            
+            fig_anos = px.line(
+                df_ingressos, x="Ano de Ingresso", y="Quantidade", 
+                markers=True, text="Quantidade",
+                color_discrete_sequence=["#d62728"]
+            )
+            fig_anos.update_traces(textposition="top center")
+            fig_anos.update_layout(yaxis_title="Qtd de Ingressos", xaxis_title="Ano")
+            st.plotly_chart(fig_anos, use_container_width=True)
+        else:
+            st.info("Sem dados de ingresso no filtro atual.")
+
+    with colD:
+        st.subheader("⭐ Senioridade na Carreira (Por Classe)")
+        st.markdown("Distribuição macro dos servidores pelas classes (A, B, C, Especial).")
+        
+        df_classes = df_filtrado[df_filtrado["Classe"] != "Desconhecida"]
+        if not df_classes.empty:
+            # Garante a ordem correta das classes
+            ordem_classes =["A", "B", "C", "ESPECIAL"]
+            df_cnt_classes = df_classes.groupby("Classe").size().reset_index(name="Quantidade")
+            df_cnt_classes["Classe"] = pd.Categorical(df_cnt_classes["Classe"], categories=ordem_classes, ordered=True)
+            df_cnt_classes = df_cnt_classes.sort_values("Classe")
+
+            fig_classes = px.pie(
+                df_cnt_classes, 
+                values="Quantidade", 
+                names="Classe",
+                hole=0.3,
+                color="Classe",
+                color_discrete_map={"A": "#17becf", "B": "#9467bd", "C": "#e377c2", "ESPECIAL": "#bcbd22"}
+            )
+            fig_classes.update_traces(textinfo='percent+value+label', textposition='inside')
+            fig_classes.update_layout(showlegend=False, margin=dict(t=20, b=20, l=0, r=0))
+            st.plotly_chart(fig_classes, use_container_width=True)
 
     # ================================
     # GRÁFICOS PARTE 2: Foco nas FCEs
