@@ -7,6 +7,8 @@
 
 Um painel interativo e automatizado para análise da distribuição dos **Analistas em Tecnologia da Informação (ATIs)** no Poder Executivo Federal. Este projeto consome dados abertos governamentais, realiza o processamento pesado de dados (ETL) e exibe métricas detalhadas através de um dashboard em tempo real.
 
+## Acesse em: https://observatorio-ati.streamlit.app/
+
 ---
 
 ## 🎯 Objetivo do Projeto
