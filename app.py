@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import os
 import json
+import re
+import io
 
 # ================================
 # Configuração da Página
@@ -39,6 +41,40 @@ def load_data():
             lambda x: str(x)[-4:] if "/" in str(x) else "Desconhecido"
         )
 
+        # ---------------------------------------------
+        # EXTRAÇÃO INTELIGENTE: Focado 100% em FCE
+        # ---------------------------------------------
+        def classificar_funcao(funcao):
+            funcao = str(funcao).strip().upper()
+            if funcao in["SEM FUNÇÃO", "NAN", ""]:
+                return "Sem Função", "Sem Função", "Sem Função", -1
+                
+            # Busca estritamente por FCE e seus dois últimos dígitos (01 a 17)
+            match = re.search(r'\b(FCE)\b.*?(?:[^\d]|^)(\d{2})\b', funcao)
+            
+            if match:
+                tipo = match.group(1) # Extrai 'FCE'
+                nivel = match.group(2) # Extrai 05, 10, 13...
+                
+                if nivel.isdigit() and 1 <= int(nivel) <= 17:
+                    exibicao = f"FCE Nível {nivel}"
+                    return exibicao, "FCE", f"Nível {nivel}", int(nivel)
+            
+            # Tudo que não for FCE puro, cai em Outras Funções
+            return "Outras Funções", "Outras Funções", "Outras", 0
+
+        if "Função" in df.columns:
+            resultados = df["Função"].apply(classificar_funcao)
+            df["Função Resumo"] = [res[0] for res in resultados]
+            df["Tipo Função"] = [res[1] for res in resultados]
+            df["Nível Função"] =[res[2] for res in resultados]
+            df["Ordem Nível"] =[res[3] for res in resultados]
+        else:
+            df["Função Resumo"] = "Desconhecida"
+            df["Tipo Função"] = "Desconhecida"
+            df["Nível Função"] = "Desconhecida"
+            df["Ordem Nível"] = -1
+
     return df, data_ref
 
 
@@ -47,14 +83,8 @@ df, data_ref = load_data()
 # ================================
 # MENU LATERAL
 # ================================
-#st.sidebar.image(
-#    "https://img.icons8.com/color/96/000000/brazil.png",
-#    width=60
-#)
-
 pagina = st.sidebar.radio(
-    "📌 Navegação do Painel",
-    ["📊 Observatório ATI", "📚 Sobre a Carreira"]
+    "📌 Navegação do Painel",["📊 Observatório ATI", "📚 Sobre a Carreira"]
 )
 
 st.sidebar.divider()
@@ -65,11 +95,7 @@ st.sidebar.divider()
 if pagina == "📊 Observatório ATI":
 
     st.title("💻 Observatório da Carreira ATI")
-
-    st.markdown(
-        "Painel interativo com a distribuição dos **Analistas em Tecnologia da Informação** do Executivo Federal."
-    )
-
+    st.markdown("Painel interativo com a distribuição dos **Analistas em Tecnologia da Informação** do Executivo Federal.")
     st.divider()
 
     if df.empty:
@@ -85,32 +111,15 @@ if pagina == "📊 Observatório ATI":
     orgaos = ["Todos"] + sorted(df["Órgão de Exercício"].dropna().unique())
     orgao_selecionado = st.sidebar.selectbox("Órgão de Exercício:", orgaos)
 
-    tem_funcao_opcoes = ["Todos", "Sim", "Não"]
-    funcao_selecionada = st.sidebar.radio(
-        "Ocupa Função Comissionada?",
-        tem_funcao_opcoes
-    )
+    tem_funcao_opcoes =["Todos", "Sim", "Não"]
+    funcao_selecionada = st.sidebar.radio("Ocupa Função Comissionada?", tem_funcao_opcoes)
 
-    classes = ["Todas"] + sorted(
-        df[df["Classe"] != "Desconhecida"]["Classe"].unique()
-    )
+    classes = ["Todas"] + sorted(df[df["Classe"] != "Desconhecida"]["Classe"].unique())
+    classe_selecionada = st.sidebar.selectbox("Classe na Carreira:", classes)
 
-    classe_selecionada = st.sidebar.selectbox(
-        "Classe na Carreira:",
-        classes
-    )
-
-    anos_validos = sorted(
-        [ano for ano in df["Ano de Ingresso"].unique() if ano.isdigit()],
-        reverse=True
-    )
-
+    anos_validos = sorted([ano for ano in df["Ano de Ingresso"].unique() if ano.isdigit()], reverse=True)
     anos = ["Todos"] + anos_validos
-
-    ano_selecionado = st.sidebar.selectbox(
-        "Ano de Ingresso (Serviço Público):",
-        anos
-    )
+    ano_selecionado = st.sidebar.selectbox("Ano de Ingresso (Serviço Público):", anos)
 
     # ================================
     # APLICAÇÃO DOS FILTROS
@@ -118,136 +127,103 @@ if pagina == "📊 Observatório ATI":
     df_filtrado = df.copy()
 
     if orgao_selecionado != "Todos":
-        df_filtrado = df_filtrado[
-            df_filtrado["Órgão de Exercício"] == orgao_selecionado
-        ]
-
+        df_filtrado = df_filtrado[df_filtrado["Órgão de Exercício"] == orgao_selecionado]
     if funcao_selecionada != "Todos":
-        df_filtrado = df_filtrado[
-            df_filtrado["Tem Função?"] == funcao_selecionada
-        ]
-
+        df_filtrado = df_filtrado[df_filtrado["Tem Função?"] == funcao_selecionada]
     if classe_selecionada != "Todas":
-        df_filtrado = df_filtrado[
-            df_filtrado["Classe"] == classe_selecionada
-        ]
-
+        df_filtrado = df_filtrado[df_filtrado["Classe"] == classe_selecionada]
     if ano_selecionado != "Todos":
-        df_filtrado = df_filtrado[
-            df_filtrado["Ano de Ingresso"] == ano_selecionado
-        ]
+        df_filtrado = df_filtrado[df_filtrado["Ano de Ingresso"] == ano_selecionado]
 
     # ================================
     # KPIs
     # ================================
     col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("Total de ATIs (Filtro)", len(df_filtrado))
-
+    with col1: st.metric("Total de ATIs (Filtro)", len(df_filtrado))
     with col2:
-
         atis_func = len(df_filtrado[df_filtrado["Tem Função?"] == "Sim"])
-
-        perc = (
-            atis_func / len(df_filtrado) * 100
-            if len(df_filtrado) > 0
-            else 0
-        )
-
+        perc = (atis_func / len(df_filtrado) * 100 if len(df_filtrado) > 0 else 0)
         st.metric("Com Função", f"{atis_func} ({perc:.1f}%)")
-
-    with col3:
-        st.metric(
-            "Órgãos Distintos",
-            df_filtrado["Órgão de Exercício"].nunique()
-        )
-
+    with col3: st.metric("Órgãos Distintos", df_filtrado["Órgão de Exercício"].nunique())
     with col4:
-
-        if not df_filtrado.empty:
-            ano_mais_comum = df_filtrado["Ano de Ingresso"].mode()[0]
-        else:
-            ano_mais_comum = "-"
-
+        ano_mais_comum = df_filtrado["Ano de Ingresso"].mode()[0] if not df_filtrado.empty else "-"
         st.metric("Ano de Ingresso (Moda)", ano_mais_comum)
 
     st.divider()
 
     # ================================
-    # GRÁFICOS
+    # GRÁFICOS PARTE 1
     # ================================
     colA, colB = st.columns(2)
 
     with colA:
-
         st.subheader("🏢 Top 10 Órgãos com mais ATIs")
-
-        df_orgaos = (
-            df_filtrado["Órgão de Exercício"]
-            .value_counts()
-            .reset_index()
-            .head(10)
-        )
-
+        df_orgaos = df_filtrado["Órgão de Exercício"].value_counts().reset_index().head(10)
         df_orgaos.columns = ["Órgão", "Quantidade"]
-
-        fig_orgaos = px.bar(
-            df_orgaos,
-            x="Quantidade",
-            y="Órgão",
-            orientation="h",
-            color="Quantidade",
-            color_continuous_scale="Blues"
-        )
-
-        fig_orgaos.update_layout(
-            yaxis={"categoryorder": "total ascending"}
-        )
-
+        fig_orgaos = px.bar(df_orgaos, x="Quantidade", y="Órgão", orientation="h", color="Quantidade", color_continuous_scale="Blues")
+        fig_orgaos.update_layout(yaxis={"categoryorder": "total ascending"})
         st.plotly_chart(fig_orgaos, use_container_width=True)
 
     with colB:
-
         st.subheader("📊 Distribuição por Nível da Carreira")
-
-        df_niveis = (
-            df_filtrado
-            .groupby(["Nível/Padrão", "Tem Função?"])
-            .size()
-            .reset_index(name="Quantidade")
-        )
-
+        df_niveis = df_filtrado.groupby(["Nível/Padrão", "Tem Função?"]).size().reset_index(name="Quantidade")
         df_niveis = df_niveis.sort_values(by="Nível/Padrão")
-
-        fig_niveis = px.bar(
-            df_niveis,
-            x="Nível/Padrão",
-            y="Quantidade",
-            color="Tem Função?",
-            barmode="stack",
-            color_discrete_map={
-                "Sim": "#1f77b4",
-                "Não": "#ff7f0e"
-            }
-        )
-
+        fig_niveis = px.bar(df_niveis, x="Nível/Padrão", y="Quantidade", color="Tem Função?", barmode="stack", color_discrete_map={"Sim": "#1f77b4", "Não": "#ff7f0e"})
         st.plotly_chart(fig_niveis, use_container_width=True)
 
-    # ================================
-    # TABELA
-    # ================================
-    st.subheader("📋 Tabela Analítica Detalhada")
+    st.divider()
 
-    df_exibicao = df_filtrado.drop(
-        columns=["Classe", "Ano de Ingresso"]
-    )
+    # ================================
+    # GRÁFICOS PARTE 2: Foco nas FCEs
+    # ================================
+    st.subheader("🎯 Raio-X das Funções Comissionadas Executivas (FCE)")
+    
+    st.info("💡 **Como ler este gráfico?** Foram grupadas as funções FCE pelos seus **dois últimos dígitos (ex: 05, 10, 13)**, que representam o nível da função. Demais tipos de função foram alocados em 'Outras Funções'.")
 
-    st.dataframe(
-        df_exibicao,
-        use_container_width=True,
-        hide_index=True
-    )
+    col_Dnt, col_Bar = st.columns([1, 2])
+
+    cores_map = {"FCE": "#2CA02C", "Outras Funções": "#9467BD", "Sem Função": "#7F7F7F"}
+
+    with col_Dnt:
+        st.markdown("**Proporção de Vínculos de Chefia/Assessoramento**")
+        df_pizza = df_filtrado[df_filtrado["Tipo Função"] != "Sem Função"]["Tipo Função"].value_counts().reset_index()
+        df_pizza.columns =["Tipo", "Quantidade"]
+        
+        if not df_pizza.empty:
+            fig_pizza = px.pie(df_pizza, values="Quantidade", names="Tipo", hole=0.45, color="Tipo", color_discrete_map=cores_map)
+            fig_pizza.update_traces(textposition='inside', textinfo='percent+label')
+            fig_pizza.update_layout(showlegend=False, margin=dict(t=20, b=20, l=0, r=0))
+            st.plotly_chart(fig_pizza, use_container_width=True)
+        else:
+            st.warning("Sem dados de função para exibir.")
+
+    with col_Bar:
+        st.markdown("**Distribuição por Nível da Função (FCE 01 ao 17)**")
+        
+        df_fce = df_filtrado[df_filtrado["Tipo Função"] == "FCE"]
+        
+        if not df_fce.empty:
+            df_bar = df_fce.groupby(["Nível Função", "Ordem Nível"]).size().reset_index(name="Quantidade")
+            df_bar = df_bar.sort_values(by="Ordem Nível")
+
+            fig_bar = px.bar(
+                df_bar, x="Nível Função", y="Quantidade", 
+                text="Quantidade", color_discrete_sequence=["#2CA02C"]
+            )
+            fig_bar.update_traces(textposition='outside')
+            fig_bar.update_layout(xaxis_title="", yaxis_title="Quantidade de Servidores", margin=dict(t=20, b=20))
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info("Nenhum servidor FCE no filtro atual.")
+
+    # ================================
+    # TABELA FINAL
+    # ================================
+    st.divider()
+    st.subheader("📋 Base de Dados Completa")
+
+    df_exibicao = df_filtrado.drop(columns=["Classe", "Ano de Ingresso", "Ordem Nível", "Tipo Função", "Nível Função"], errors="ignore")
+    st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
 
 # ================================
 # PÁGINA 2 - SOBRE A CARREIRA
@@ -329,6 +305,79 @@ simultaneamente, os seguintes requisitos:
 1. Cumprimento do interstício mínimo no último padrão da classe atual
 2. Avaliação de desempenho com resultado **satisfatório**
         """)
+
+    with st.expander("💼 Valores Oficiais (FCE)"):
+        st.markdown("""
+Abaixo constam as tabelas exatas de remuneração da **Função Comissionada Executiva (FCE)**.
+        """)
+                # DADOS BRUTOS EXATOS FCE
+        dados_raw_fce = """Cargo/Função	Valor	CCE Unitário
+FCE 1 17	R$ 16.765,90	4,79
+FCE 1 16	R$ 14.045,67	4,01
+FCE 1 15	R$ 12.196,47	3,49
+FCE 1 14	R$ 10.432,37	2,98
+FCE 1 13	R$ 8.651,81	2,47
+FCE 1 12	R$ 6.513,87	1,86
+FCE 1 11	R$ 5.193,87	1,48
+FCE 1 10	R$ 4.455,87	1,27
+FCE 1 09	R$ 3.498,47	1,00
+FCE 1 08	R$ 3.356,01	0,96
+FCE 1 07	R$ 2.908,64	0,83
+FCE 1 06	R$ 2.463,00	0,70
+FCE 1 05	R$ 2.099,09	0,60
+FCE 1 04	R$ 1.553,73	0,44
+FCE 1 03	R$ 1.294,43	0,37
+FCE 1 02	R$ 723,98	0,21
+FCE 1 01	R$ 428,38	0,12
+FCE 2 17	R$ 16.765,90	4,79
+FCE 2 16	R$ 14.045,67	4,01
+FCE 2 15	R$ 12.196,47	3,49
+FCE 2 14	R$ 10.432,37	2,98
+FCE 2 13	R$ 8.651,81	2,47
+FCE 2 12	R$ 6.513,87	1,86
+FCE 2 11	R$ 5.193,87	1,48
+FCE 2 10	R$ 4.455,87	1,27
+FCE 2 09	R$ 3.498,47	1,00
+FCE 2 08	R$ 3.356,01	0,96
+FCE 2 07	R$ 2.908,64	0,83
+FCE 2 06	R$ 2.463,00	0,70
+FCE 2 05	R$ 2.099,09	0,60
+FCE 2 04	R$ 1.553,73	0,44
+FCE 2 03	R$ 1.294,43	0,37
+FCE 2 02	R$ 723,98	0,21
+FCE 2 01	R$ 428,38	0,12
+FCE 3 16	R$ 14.045,67	4,01
+FCE 3 15	R$ 12.196,47	3,49
+FCE 3 14	R$ 10.432,37	2,98
+FCE 3 13	R$ 8.651,81	2,47
+FCE 3 12	R$ 6.513,87	1,86
+FCE 3 11	R$ 5.193,87	1,48
+FCE 3 10	R$ 4.455,87	1,27
+FCE 3 09	R$ 3.498,47	1,00
+FCE 3 08	R$ 3.356,01	0,96
+FCE 3 07	R$ 2.908,64	0,83
+FCE 3 06	R$ 2.463,00	0,70
+FCE 3 05	R$ 2.099,09	0,60
+FCE 3 04	R$ 1.553,73	0,44
+FCE 3 03	R$ 1.294,43	0,37
+FCE 3 02	R$ 723,98	0,21
+FCE 3 01	R$ 428,38	0,12
+FCE 4 13	R$ 8.651,81	2,47
+FCE 4 12	R$ 6.513,87	1,86
+FCE 4 11	R$ 5.193,87	1,48
+FCE 4 10	R$ 4.455,87	1,27
+FCE 4 09	R$ 3.498,47	1,00
+FCE 4 08	R$ 3.356,01	0,96
+FCE 4 07	R$ 2.908,64	0,83
+FCE 4 06	R$ 2.463,00	0,70
+FCE 4 05	R$ 2.099,09	0,60
+FCE 4 04	R$ 1.553,73	0,44
+FCE 4 03	R$ 1.294,43	0,37
+FCE 4 02	R$ 723,98	0,21
+FCE 4 01	R$ 428,38	0,12"""
+
+        df_fce = pd.read_csv(io.StringIO(dados_raw_fce), sep="\t")
+        st.dataframe(df_fce, hide_index=True, use_container_width=True)
 
     with st.expander("🔄 Movimentação de servidores (Art. 38)"):
         st.write("""
