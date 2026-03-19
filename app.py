@@ -19,53 +19,47 @@ def load_data():
 
     caminho_arquivo = os.path.join("data", "dados_atis.csv")
     caminho_meta = os.path.join("data", "metadata.json")
+    caminho_desligamentos = os.path.join("data", "desligamentos-ati-pep-fev-2026.csv")
 
     data_ref = "Atualização Pendente"
 
+    # Carrega Metadados
     if os.path.exists(caminho_meta):
         with open(caminho_meta, "r", encoding="utf-8") as f:
             data_ref = json.load(f).get("data_referencia", "Desconhecida")
 
+    # Carrega Base Principal
     try:
         df = pd.read_csv(caminho_arquivo)
     except FileNotFoundError:
         df = pd.DataFrame()
 
     if not df.empty:
-
         df["Classe"] = df["Nível/Padrão"].apply(
             lambda x: str(x).split("-")[0].strip().upper() if pd.notna(x) else "Desconhecida"
         )
-
         df["Ano de Ingresso"] = df["Ingresso Serviço Público"].apply(
             lambda x: str(x)[-4:] if "/" in str(x) else "Desconhecido"
         )
 
-        # ---------------------------------------------
         # EXTRAÇÃO INTELIGENTE: Focado 100% em FCE
-        # ---------------------------------------------
         def classificar_funcao(funcao):
             funcao = str(funcao).strip().upper()
             if funcao in["SEM FUNÇÃO", "NAN", ""]:
                 return "Sem Função", "Sem Função", "Sem Função", -1
                 
-            # Busca estritamente por FCE e seus dois últimos dígitos (01 a 17)
             match = re.search(r'\b(FCE)\b.*?(?:[^\d]|^)(\d{2})\b', funcao)
-            
             if match:
-                tipo = match.group(1) # Extrai 'FCE'
-                nivel = match.group(2) # Extrai 05, 10, 13...
-                
+                tipo = match.group(1) 
+                nivel = match.group(2)
                 if nivel.isdigit() and 1 <= int(nivel) <= 17:
-                    exibicao = f"FCE Nível {nivel}"
-                    return exibicao, "FCE", f"Nível {nivel}", int(nivel)
+                    return f"FCE Nível {nivel}", "FCE", f"Nível {nivel}", int(nivel)
             
-            # Tudo que não for FCE puro, cai em Outras Funções
             return "Outras Funções", "Outras Funções", "Outras", 0
 
         if "Função" in df.columns:
             resultados = df["Função"].apply(classificar_funcao)
-            df["Função Resumo"] = [res[0] for res in resultados]
+            df["Função Resumo"] =[res[0] for res in resultados]
             df["Tipo Função"] = [res[1] for res in resultados]
             df["Nível Função"] =[res[2] for res in resultados]
             df["Ordem Nível"] =[res[3] for res in resultados]
@@ -75,10 +69,26 @@ def load_data():
             df["Nível Função"] = "Desconhecida"
             df["Ordem Nível"] = -1
 
-    return df, data_ref
+    # Carrega Dados de Desligamento
+    try:
+        # utf-8-sig ignora eventuais caracteres BOM invisíveis do Excel/CSV
+        df_deslig = pd.read_csv(caminho_desligamentos, encoding="utf-8-sig")
+        
+        # Filtra sujeiras das últimas linhas (Aba, Selection Status, etc)
+        df_deslig = df_deslig[df_deslig["Ano"].astype(str).str.isnumeric()]
+        
+        # Renomeia e tipa as colunas
+        df_deslig = df_deslig.rename(columns={"Quantidade de Desligamentos": "Desligamentos"})
+        df_deslig["Ano"] = df_deslig["Ano"].astype(str)
+        df_deslig["Desligamentos"] = df_deslig["Desligamentos"].astype(int)
+        df_deslig = df_deslig[["Ano", "Desligamentos"]]
+    except FileNotFoundError:
+        df_deslig = pd.DataFrame(columns=["Ano", "Desligamentos"])
+
+    return df, data_ref, df_deslig
 
 
-df, data_ref = load_data()
+df, data_ref, df_deslig = load_data()
 
 # ================================
 # MENU LATERAL
@@ -159,13 +169,8 @@ if pagina == "📊 Observatório ATI":
     with colA:
         st.subheader("🏢 Top 10 Órgãos com mais ATIs")
         
-        # Pega apenas os nomes dos 10 maiores órgãos
         top_10_nomes = df_filtrado["Órgão de Exercício"].value_counts().head(10).index.tolist()
-        
-        # Filtra o dataframe apenas para esses 10 órgãos
         df_top10 = df_filtrado[df_filtrado["Órgão de Exercício"].isin(top_10_nomes)]
-        
-        # Agrupa por Órgão e se Tem Função
         df_orgaos_func = df_top10.groupby(["Órgão de Exercício", "Tem Função?"]).size().reset_index(name="Quantidade")
         
         fig_orgaos = px.bar(
@@ -174,8 +179,8 @@ if pagina == "📊 Observatório ATI":
             y="Órgão de Exercício", 
             color="Tem Função?", 
             orientation="h",
-            color_discrete_map={"Sim": "#1f77b4", "Não": "#b0c4de"}, # Azul forte para Sim, azul fraco para Não
-            category_orders={"Órgão de Exercício": top_10_nomes[::-1]} # Mantém a ordem do maior pro menor
+            color_discrete_map={"Sim": "#1f77b4", "Não": "#b0c4de"}, 
+            category_orders={"Órgão de Exercício": top_10_nomes[::-1]} 
         )
         fig_orgaos.update_layout(barmode="stack", margin=dict(t=20, b=20, l=0, r=0))
         st.plotly_chart(fig_orgaos, use_container_width=True)
@@ -183,13 +188,11 @@ if pagina == "📊 Observatório ATI":
     with colB:
         st.subheader("📊 Distribuição por Nível da Carreira")
         
-        # Adiciona um toggle sutil para mudar a visão
         modo_percentual = st.toggle("Ver em Percentual (%)", value=False)
         
         df_niveis = df_filtrado.groupby(["Nível/Padrão", "Tem Função?"]).size().reset_index(name="Quantidade")
         df_niveis = df_niveis.sort_values(by="Nível/Padrão")
         
-        # Configura o tipo de barra baseado no toggle
         barmode_tipo = "relative" if modo_percentual else "stack"
         barnorm_tipo = "percent" if modo_percentual else None
         
@@ -212,14 +215,12 @@ if pagina == "📊 Observatório ATI":
     # ================================
     # GRÁFICOS PARTE 1.5 - TEMPO E SENIORIDADE
     # ================================
-    st.divider()
     colC, colD = st.columns(2)
 
     with colC:
-        st.subheader("⏳ Histórico de Ingresso (Ondas de Concursos)")
+        st.subheader("⏳ Histórico de Ingresso (Filtro Atual)")
         st.markdown("Distribuição do ano de ingresso no serviço público.")
         
-        # Filtra anos desconhecidos
         df_anos = df_filtrado[df_filtrado["Ano de Ingresso"] != "Desconhecido"]
         if not df_anos.empty:
             df_ingressos = df_anos.groupby("Ano de Ingresso").size().reset_index(name="Quantidade")
@@ -242,7 +243,6 @@ if pagina == "📊 Observatório ATI":
         
         df_classes = df_filtrado[df_filtrado["Classe"] != "Desconhecida"]
         if not df_classes.empty:
-            # Garante a ordem correta das classes
             ordem_classes =["A", "B", "C", "ESPECIAL"]
             df_cnt_classes = df_classes.groupby("Classe").size().reset_index(name="Quantidade")
             df_cnt_classes["Classe"] = pd.Categorical(df_cnt_classes["Classe"], categories=ordem_classes, ordered=True)
@@ -261,8 +261,67 @@ if pagina == "📊 Observatório ATI":
             st.plotly_chart(fig_classes, use_container_width=True)
 
     # ================================
+    # GRÁFICOS PARTE 1.8 - BALANÇO DE PESSOAL (GLOBAL)
+    # ================================
+    st.divider()
+    st.subheader("⚖️ Balanço da Carreira (Visão Global: Ingressos vs Evasão)")
+    st.markdown("Comparativo histórico entre a entrada de novos servidores e a perda por desligamentos. *Nota: Os desligamentos não possuem detalhamento por órgão/classe, portanto esta seção representa o **cenário geral da carreira** e não sofre alteração dos filtros laterais.*")
+
+    if not df_deslig.empty:
+        # Pega todos os ingressos globais
+        df_ingressos_global = df[df["Ano de Ingresso"] != "Desconhecido"].groupby("Ano de Ingresso").size().reset_index(name="Ingressos")
+        df_ingressos_global = df_ingressos_global.rename(columns={"Ano de Ingresso": "Ano"})
+
+        # Mescla Ingressos e Desligamentos usando o Ano
+        df_balanco = pd.merge(df_ingressos_global, df_deslig, on="Ano", how="outer").fillna(0)
+        df_balanco["Ingressos"] = df_balanco["Ingressos"].astype(int)
+        df_balanco["Desligamentos"] = df_balanco["Desligamentos"].astype(int)
+        df_balanco = df_balanco.sort_values("Ano")
+        
+        # Filtra a partir do primeiro ano que faz sentido mostrar (ex: 2010 pra frente)
+        df_balanco = df_balanco[df_balanco["Ano"].astype(int) >= 2010]
+
+        # --- NOVOS KPIs ---
+        total_desligamentos = df_balanco["Desligamentos"].sum()
+        st.metric("Total de Evasão (Desde 2010)", f"{total_desligamentos}")
+
+        st.write("") # Espaçamento
+        
+        # Derrete (Melt) o dataframe para o Plotly plotar barras agrupadas facilmente
+        df_melted = df_balanco.melt(id_vars="Ano", value_vars=["Ingressos", "Desligamentos"], var_name="Movimentação", value_name="Quantidade")
+
+        # Gráfico ocupando a largura total agora
+        fig_balanco = px.bar(
+            df_melted, x="Ano", y="Quantidade", color="Movimentação", barmode="group",
+            color_discrete_map={"Ingressos": "#1f77b4", "Desligamentos": "#d62728"}, # Azul e Vermelho
+            text_auto=True
+        )
+        fig_balanco.update_layout(yaxis_title="Qtd. de Servidores", xaxis_title="Ano do Evento", margin=dict(t=20, b=20))
+        fig_balanco.update_traces(textposition='outside')
+        st.plotly_chart(fig_balanco, use_container_width=True)
+    else:
+        st.info("Nenhum dado de evasão encontrado. Adicione o arquivo 'desligamentos-ati-pep-fev-2026.csv' na pasta 'data'.")
+
+    # --- NOVO BLOCO DE TEXTO ANALÍTICO ---
+    st.warning("""
+    **⚠️ O Risco da Estagnação para o Estado Brasileiro**
+        
+    O cenário ilustrado pelo balanço acima evidencia um déficit crítico: a retenção e o crescimento da força de trabalho de ATIs não acompanharam a explosão da demanda por tecnologia no setor público. 
+        
+    Essa realidade compromete diretamente a **Estratégia de Governo Digital** e coloca o país em uma posição de vulnerabilidade tecnológica. O baixo crescimento do quadro efetivo gera impactos severos e **prejuízos diretos à Administração Pública**, tais como:
+
+    * **Dependência e Custos Elevados:** A incapacidade de absorver e reter talentos obriga o governo a recorrer excessivamente a contratos de terceirização e consultorias, encarecendo a gestão de TI e dificultando a fiscalização técnica e isenta dos serviços prestados.
+    * **Perda de Memória Institucional (Fuga de Cérebros):** A alta evasão significa que o conhecimento profundo sobre a arquitetura de sistemas críticos e bases de dados nacionais é constantemente perdido, gerando retrabalho e ineficiência.
+    * **Atraso na Inovação e Descontinuidade:** Projetos estruturantes de transformação digital, adoção de inteligência artificial e unificação de serviços sofrem com a falta de liderança técnica permanente.
+    * **Riscos à Segurança e Soberania Nacional:** A fragilização do quadro próprio de especialistas em TI amplia os riscos de incidentes cibernéticos e compromete a soberania do Estado na governança dos dados dos cidadãos.
+        
+    Em suma, sem políticas de valorização, atração e expansão robusta da carreira de ATI, o Estado perde sua capacidade de resposta frente aos desafios tecnológicos modernos, ameaçando a continuidade e a qualidade da cidadania digital no Brasil.
+    """)
+
+    # ================================
     # GRÁFICOS PARTE 2: Foco nas FCEs
     # ================================
+    st.divider()
     st.subheader("🎯 Raio-X das Funções Comissionadas Executivas (FCE)")
     
     st.info("💡 **Como ler este gráfico?** Foram grupadas as funções FCE pelos seus **dois últimos dígitos (ex: 05, 10, 13)**, que representam o nível da função. Demais tipos de função foram alocados em 'Outras Funções'.")
