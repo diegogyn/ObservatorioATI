@@ -3,7 +3,9 @@ name: Atualizar Dados do Observatório ATI
 on:
   push:
     paths:
-      - 'data/*.zip' # Roda automaticamente se você subir um ZIP novo
+      - 'data/*.zip'
+  schedule:
+   - cron: '0 9 2 * *' # Roda automaticamente se você subir um ZIP novo
   workflow_dispatch: # Permite rodar manualmente apertando um botão no GitHub
 
 # Permissão necessária para o robô fazer o git push
@@ -31,8 +33,10 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Rodar o ETL
+      - name: Baixar ZIP e rodar o ETL
         run: |
+          mesanterior=$(date -d "$(date +%Y-%m-2) -1 month" +%Y%m)
+          wget -q https://dadosabertos-download.cgu.gov.br/PortalDaTransparencia/saida/servidores/$(echo $mesanterior)_Servidores_SIAPE.zip -O data/$(echo $mesanterior)_Servidores_SIAPE.zip
           python etl_atis.py
 
       - name: Salvar os dados processados e apagar o ZIP pesado
