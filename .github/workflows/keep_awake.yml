@@ -1,0 +1,14 @@
+name: Manter Streamlit Acordado
+
+on:
+  schedule:
+    # Roda todos os dias às 12:00 (meio-dia)
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fazer um ping no Streamlit
+        run: curl -sL https://observatorio-ati.streamlit.app/ > /dev/null
