@@ -2,8 +2,7 @@ name: Manter Streamlit Acordado
 
 on:
   schedule:
-    # Roda todos os dias às 12:00 (meio-dia)
-    - cron: '0 12 * * *'
+    - cron: '0 12 * * *' # Roda todos os dias
   workflow_dispatch:
 
 jobs:
@@ -11,4 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fazer um ping no Streamlit
-        run: curl -sL https://observatorio-ati.streamlit.app/ > /dev/null
+        run: |
+          # Acessa a rota interna de saúde do Streamlit
+          STATUS=$(curl -s https://observatorio-ati.streamlit.app/_stcore/health)
+          
+          # Mostra no log do GitHub se deu certo
+          echo "Resposta do servidor: $STATUS"
+          
+          if [ "$STATUS" = "ok" ]; then
+            echo "✅ Aplicativo está online e acordado!"
+          else
+            echo "⚠️ Resposta inesperada do servidor."
+          fi
