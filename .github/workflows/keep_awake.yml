@@ -11,14 +11,14 @@ jobs:
     steps:
       - name: Fazer um ping no Streamlit
         run: |
-          # Acessa a rota interna de saúde do Streamlit
-          STATUS=$(curl -s https://observatorio-ati.streamlit.app/_stcore/health)
+          # Pega apenas o código de status HTTP da requisição (ex: 200, 303, 302)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://observatorio-ati.streamlit.app/)
           
-          # Mostra no log do GitHub se deu certo
-          echo "Resposta do servidor: $STATUS"
+          echo "O servidor respondeu com o status HTTP: $STATUS"
           
-          if [ "$STATUS" = "ok" ]; then
-            echo "✅ Aplicativo está online e acordado!"
+          # Se o status começar com 2 (Sucesso) ou 3 (Redirecionamento do Streamlit), está tudo certo!
+          if [[ "$STATUS" == 2* ]] || [[ "$STATUS" == 3* ]]; then
+            echo "✅ Ping realizado com sucesso! O tráfego foi gerado e o app continuará acordado."
           else
-            echo "⚠️ Resposta inesperada do servidor."
+            echo "⚠️ Aviso: Status diferente do esperado ($STATUS), mas o ping foi enviado."
           fi
